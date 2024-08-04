@@ -1,0 +1,9 @@
+fastapi
+langserve
+uvicorn
+langchain
+openai
+langchain_community
+load_dotenv
+pydantic
+langchain_openai

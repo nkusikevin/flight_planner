@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+*.pyo
+fly/
+env/
+*.log
+*.env
+*.env.example
+*.env.local
+*.env.staging
