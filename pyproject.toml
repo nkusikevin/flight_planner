@@ -13,6 +13,13 @@ python = "^3.11"
 uvicorn = "^0.23.2"
 langserve = {extras = ["server"], version = ">=0.0.30"}
 pydantic = "<2"
+fastapi = "^0.70.0"
+load_dotenv = "^0.1.0"
+langchain = ">=0.2.9"
+langchain_community = ">=0.2.9"
+langchain_openai = ">=0.1.10"
+openai = ">=1.36.0"
+
 
 
 [tool.poetry.group.dev.dependencies]

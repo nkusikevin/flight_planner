@@ -17,6 +17,7 @@ from typing import Any
 from langchain_openai import ChatOpenAI
 import re
 from datetime import datetime
+from langchain.schema.runnable import RunnablePassthrough
 
 app = FastAPI()
 
@@ -51,6 +52,35 @@ def parse_flight_query(query):
     
     return parsed
 
+# def flight_query_tool(query):
+#     print("Querying for:", query)
+#     parsed_query = parse_flight_query(query)
+#     relevant_flights = []
+
+#     for flight in mock_flights:
+#         matches = True
+#         for key, value in parsed_query.items():
+#             if key == 'price_max' and flight['price'] > int(value):
+#                 matches = False
+#                 break
+#             elif key == 'price_min' and flight['price'] < int(value):
+#                 matches = False
+#                 break
+#             elif key in flight and str(flight[key]).lower() != value.lower():
+#                 matches = False
+#                 break
+        
+#         if matches:
+#             flight_with_number = flight.copy()
+#             flight_with_number['flight-number'] = random.randint(100, 9999)
+#             relevant_flights.append(flight_with_number)
+
+#     return json.dumps({
+#         "visualization": "flight-list",
+#         "data": relevant_flights[:5]  # Limit to 5 flights for brevity
+#     })
+
+
 def flight_query_tool(query):
     print("Querying for:", query)
     parsed_query = parse_flight_query(query)
@@ -74,10 +104,7 @@ def flight_query_tool(query):
             flight_with_number['flight-number'] = random.randint(100, 9999)
             relevant_flights.append(flight_with_number)
 
-    return json.dumps({
-        "visualization": "flight-list",
-        "data": relevant_flights[:5]  # Limit to 5 flights for brevity
-    })
+    return json.dumps(relevant_flights[:5])
 
 tools = [
     StructuredTool(
@@ -95,13 +122,12 @@ prompt = PromptTemplate(
     You are a helpful AI travel assistant. Your task is to help users find flight information.
     Use the FlightQueryTool to search for relevant flights based on the user's query.
     You can also use the agent_scratchpad to store any intermediate information that you need to keep track of.
-    Use the tools only when necessary.
+    IMPORTANT: Use the tools only when necessary, basically when you need to search for flights based on the user's query.
 
     User Query: {input}
 
     {agent_scratchpad}
   
-
     Based on the above information, provide a helpful response to the user's query.
     If you need to use a tool, use the format:
     Action: FlightQueryTool
@@ -109,6 +135,10 @@ prompt = PromptTemplate(
 
     If you have a final response for the user, use the format:
     Final Answer: <your response here>
+
+    IMPORTANT: Any time you use FlightQueryTool , Your final answer must be a valid JSON string containing an array of flight objects. 
+    If there are no matching flights, return No flights available right now. 
+    Do not include any explanatory text outside the JSON structure.
     """
 )
 
@@ -129,25 +159,78 @@ agent = (
     | OpenAIFunctionsAgentOutputParser()
 )
 
+# class Input(BaseModel):
+#     input: str
+
+# # Modify the Output class to expect a JSON string
+# class Output(BaseModel):
+#     output: str
+
+# def ensure_json_output(result):
+#     if isinstance(result, dict) and 'output' in result:
+#         try:
+#             # Attempt to parse the output as JSON
+#             json_output = json.loads(result['output'])
+#             # Ensure it's an array
+#             if not isinstance(json_output, list):
+#                 json_output = [json_output]
+#             return json.dumps(json_output)
+#         except json.JSONDecodeError:
+#             # If it's not valid JSON, wrap it in an array and return
+#             return json.dumps([{"error": "Invalid JSON", "original_output": result['output']}])
+#     else:
+#         return json.dumps([{"error": "Unexpected output format"}])
+
+# # Create the agent executor
+# agent_executor = AgentExecutor(agent=agent, tools=tools, handle_parsing_errors=True)
+
+# # Create a runnable that ensures JSON output
+# json_runnable = RunnablePassthrough() | agent_executor | ensure_json_output
+
+# # Add LangServe route with the modified executor
+# add_routes(
+#     app, 
+#     json_runnable.with_types(input_type=Input, output_type=Output).with_config(
+#         {"run_name": "agent"}
+#     ), 
+#     path="/flight_planner"
+# )
+
 class Input(BaseModel):
     input: str
 
 class Output(BaseModel):
-    output: Any
+    output: str
 
-# Agent executor
-# agent_executor = AgentExecutor.from_agent_and_tools(agent=agent, tools=tools, verbose=True)
+def ensure_json_output(result):
+    if isinstance(result, dict) and 'output' in result:
+        try:
+            # Attempt to parse the output as JSON
+            json_output = json.loads(result['output'])
+            # Ensure it's an array
+            if not isinstance(json_output, list):
+                json_output = [json_output]
+            return {"output": json.dumps(json_output)}
+        except json.JSONDecodeError:
+            # If it's not valid JSON, wrap it in an array and return
+            return {"output": json.dumps([{"error": "Invalid JSON", "original_output": result['output']}])}
+    else:
+        return {"output": json.dumps([{"error": "Unexpected output format"}])}
 
-agent_executor = AgentExecutor(agent=agent, tools=tools,handle_parsing_errors=True)
+# Create the agent executor
+agent_executor = AgentExecutor(agent=agent, tools=tools, handle_parsing_errors=True)
 
-# Add LangServe route
+# Create a runnable that ensures JSON output
+json_runnable = RunnablePassthrough() | agent_executor | ensure_json_output
+
+# Add LangServe route with the modified executor
 add_routes(
     app, 
-    agent_executor.with_types(input_type=Input, output_type=Output).with_config(
+    json_runnable.with_types(input_type=Input, output_type=Output).with_config(
         {"run_name": "agent"}
     ), 
     path="/flight_planner"
-    )
+)
 
 if __name__ == "__main__":
     import uvicorn
