@@ -7,3 +7,4 @@ langchain_community
 load_dotenv
 pydantic
 langchain_openai
+sse_starlette
