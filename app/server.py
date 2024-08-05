@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from langchain.agents import AgentExecutor, Tool
+from langchain.tools.base import StructuredTool
 from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
 from langchain.agents.format_scratchpad import format_to_openai_functions
 from langchain.tools.render import format_tool_to_openai_function
@@ -14,6 +15,8 @@ import random
 from data import mock_flights
 from typing import Any
 from langchain_openai import ChatOpenAI
+import re
+from datetime import datetime
 
 app = FastAPI()
 
@@ -25,28 +28,63 @@ app = FastAPI(
 
 
 # Initialize the OpenAI language model
-llm = ChatOpenAI(temperature=0.7, model_name="gpt-3.5-turbo")
+llm = ChatOpenAI(temperature=0.7, model_name="gpt-4o-mini" , max_tokens=100)
+# Define the input schema for the flight query tool
+class FlightQueryInput(BaseModel):
+    query: str
 
+def parse_flight_query(query):
+    patterns = {
+        'departure': r'from\s+([A-Za-z\s]+)',
+        'destination': r'to\s+([A-Za-z\s]+)',
+        'date': r'on\s+(\d{4}-\d{2}-\d{2})',
+        'price_max': r'under\s+(\d+)',
+        'price_min': r'over\s+(\d+)',
+        'time': r'at\s+(\d{2}:\d{2})',
+    }
+    
+    parsed = {}
+    for key, pattern in patterns.items():
+        match = re.search(pattern, query)
+        if match:
+            parsed[key] = match.group(1)
+    
+    return parsed
 
-# Custom tool for flight queries
 def flight_query_tool(query):
+    print("Querying for:", query)
+    parsed_query = parse_flight_query(query)
     relevant_flights = []
+
     for flight in mock_flights:
-        if query.lower() in flight['departure'].lower() or query.lower() in flight['destination'].lower() or query in flight['date']:
+        matches = True
+        for key, value in parsed_query.items():
+            if key == 'price_max' and flight['price'] > int(value):
+                matches = False
+                break
+            elif key == 'price_min' and flight['price'] < int(value):
+                matches = False
+                break
+            elif key in flight and str(flight[key]).lower() != value.lower():
+                matches = False
+                break
+        
+        if matches:
             flight_with_number = flight.copy()
             flight_with_number['flight-number'] = random.randint(100, 9999)
             relevant_flights.append(flight_with_number)
-    
+
     return json.dumps({
         "visualization": "flight-list",
         "data": relevant_flights[:5]  # Limit to 5 flights for brevity
     })
 
 tools = [
-    Tool(
+    StructuredTool(
         name="FlightQueryTool",
         func=flight_query_tool,
-        description="Useful for querying flight information based on departure, destination, or date."
+        description="Useful for querying flight information based on departure, destination, or date.",
+        args_schema=FlightQueryInput
     )
 ]
 
@@ -56,6 +94,8 @@ prompt = PromptTemplate(
     template="""
     You are a helpful AI travel assistant. Your task is to help users find flight information.
     Use the FlightQueryTool to search for relevant flights based on the user's query.
+    You can also use the agent_scratchpad to store any intermediate information that you need to keep track of.
+    Use the tools only when necessary.
 
     User Query: {input}
 
@@ -106,7 +146,7 @@ add_routes(
     agent_executor.with_types(input_type=Input, output_type=Output).with_config(
         {"run_name": "agent"}
     ), 
-    path="/flight-planner"
+    path="/flight_planner"
     )
 
 if __name__ == "__main__":
