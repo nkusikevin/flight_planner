@@ -52,34 +52,6 @@ def parse_flight_query(query):
     
     return parsed
 
-# def flight_query_tool(query):
-#     print("Querying for:", query)
-#     parsed_query = parse_flight_query(query)
-#     relevant_flights = []
-
-#     for flight in mock_flights:
-#         matches = True
-#         for key, value in parsed_query.items():
-#             if key == 'price_max' and flight['price'] > int(value):
-#                 matches = False
-#                 break
-#             elif key == 'price_min' and flight['price'] < int(value):
-#                 matches = False
-#                 break
-#             elif key in flight and str(flight[key]).lower() != value.lower():
-#                 matches = False
-#                 break
-        
-#         if matches:
-#             flight_with_number = flight.copy()
-#             flight_with_number['flight-number'] = random.randint(100, 9999)
-#             relevant_flights.append(flight_with_number)
-
-#     return json.dumps({
-#         "visualization": "flight-list",
-#         "data": relevant_flights[:5]  # Limit to 5 flights for brevity
-#     })
-
 
 def flight_query_tool(query):
     print("Querying for:", query)
