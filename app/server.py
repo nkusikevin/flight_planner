@@ -13,7 +13,7 @@ from langchain.pydantic_v1 import BaseModel
 import json
 import random
 from data import mock_flights
-from typing import Any  
+from typing import List, Dict, Any
 from langchain_openai import ChatOpenAI
 import re
 from datetime import datetime
@@ -89,8 +89,6 @@ def flight_query_tool(query):
     # Limit to 5 results
     result_flights = matching_flights[:5]
 
-    print("Result:", result_flights)
-
     return json.dumps(result_flights if result_flights else [])
 
 tools = [
@@ -154,7 +152,7 @@ class Input(BaseModel):
     input: str
 
 class Output(BaseModel):
-    output: str
+    output: List[Dict[str, Any]]
 
 def ensure_json_output(result):
     if isinstance(result, dict) and 'output' in result:
@@ -163,21 +161,20 @@ def ensure_json_output(result):
             json_output = json.loads(result['output'])
             if isinstance(json_output, list):
                 if not json_output:  # Empty list
-                    return {"output": json.dumps([{"message": "I'm sorry, but no flights are available matching your criteria."}])}
-                # It's already a JSON array, return as string
-                return {"output": json.dumps(json_output)}
+                    return {"output": [{"message": "I'm sorry, but no flights are available matching your criteria."}]}
+                # It's already a JSON array, return it directly
+                return {"output": json_output}
             else:
-                # If it's not a list, wrap it in a list and return as string
-                return {"output": json.dumps([json_output])}
+                # If it's not a list, wrap it in a list
+                return {"output": [json_output]}
         except json.JSONDecodeError:
             # If it's not valid JSON, check for timeout or iteration limit
             if "iteration limit" in result['output'].lower() or "time limit" in result['output'].lower():
-                return {"output": json.dumps([{"error": "I'm sorry, but no flights are available matching your criteria."}])}
+                return {"output": [{"error": "I'm sorry, but no flights are available matching your criteria."}]}
             # Otherwise, it's likely a general response
-            return {"output": json.dumps([{"response": result['output']}])}
+            return {"output": [{"response": result['output']}]}
     else:
-        return {"output": json.dumps([{"error": "Unexpected output format"}])}
-
+        return {"output": [{"error": "Unexpected output format"}]}
 # Create the agent executor
 agent_executor = AgentExecutor(agent=agent, tools=tools, handle_parsing_errors=True)
 
