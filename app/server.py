@@ -29,7 +29,7 @@ app = FastAPI(
 
 
 # Initialize the OpenAI language model
-llm = ChatOpenAI(temperature=0.7, model_name="gpt-4o-mini" , max_tokens=100)
+llm = ChatOpenAI(temperature=0.7, model_name="gpt-4o-mini" , max_tokens=200)
 # Define the input schema for the flight query tool
 class FlightQueryInput(BaseModel):
     query: str
@@ -93,26 +93,28 @@ tools = [
 prompt = PromptTemplate(
     input_variables=["input", "agent_scratchpad"],
     template="""
-    You are a helpful AI travel assistant. Your task is to help users find flight information.
-    Use the FlightQueryTool to search for relevant flights based on the user's query.
-    You can also use the agent_scratchpad to store any intermediate information that you need to keep track of.
-    IMPORTANT: Use the tools only when necessary, basically when you need to search for flights based on the user's query.
+    You are a helpful AI travel assistant. Your primary task is to help users find flight information, but you can also answer general questions about travel and engage in friendly conversation.
+
+    When users ask about flights, use the FlightQueryTool to search for relevant flight information.
+    For general questions or greetings, respond directly without using any tools.
 
     User Query: {input}
 
     {agent_scratchpad}
   
     Based on the above information, provide a helpful response to the user's query.
-    If you need to use a tool, use the format:
+    If you need to search for flights, use the format:
     Action: FlightQueryTool
     Action Input: <relevant search term>
 
-    If you have a final response for the user, use the format:
+    For general questions or greetings, use the format:
     Final Answer: <your response here>
 
-    IMPORTANT: Any time you use FlightQueryTool , Your final answer must be a valid JSON string containing an array of flight objects. 
-    If there are no matching flights, return No flights available right now. 
-    Do not include any explanatory text outside the JSON structure.
+    Remember:
+    1. Only use FlightQueryTool when the user is specifically asking about flights.
+    2. For greetings or general questions, respond directly without using any tools.
+    3. When using FlightQueryTool, ensure your final answer is a valid JSON string containing an array of flight objects.
+    4. If there are no matching flights, return "No flights available right now." 
     """
 )
 
@@ -150,8 +152,8 @@ def ensure_json_output(result):
                 json_output = [json_output]
             return {"output": json.dumps(json_output)}
         except json.JSONDecodeError:
-            # If it's not valid JSON, wrap it in an array and return
-            return {"output": json.dumps([{"error": "Invalid JSON", "original_output": result['output']}])}
+            # If it's not valid JSON, it's likely a general response
+            return {"output": json.dumps([{"response": result['output']}])}
     else:
         return {"output": json.dumps([{"error": "Unexpected output format"}])}
 
