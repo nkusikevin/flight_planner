@@ -13,11 +13,14 @@ from langchain.pydantic_v1 import BaseModel
 import json
 import random
 from data import mock_flights
-from typing import Any
+from typing import Any  
 from langchain_openai import ChatOpenAI
 import re
 from datetime import datetime
 from langchain.schema.runnable import RunnablePassthrough
+from collections import defaultdict
+
+
 
 app = FastAPI()
 
@@ -32,17 +35,18 @@ app = FastAPI(
 llm = ChatOpenAI(temperature=0.7, model_name="gpt-4o-mini" , max_tokens=200)
 # Define the input schema for the flight query tool
 class FlightQueryInput(BaseModel):
-    query: str
+   query: str
 
 
 def parse_flight_query(query):
     patterns = {
         'departure': r'from\s+([A-Za-z\s]+?)(?:\s+to\b|\s*$)',
-        'destination': r'to\s+([A-Za-z\s]+)',
+        'destination': r'(?:to|for)\s+([A-Za-z\s]+)',
         'date': r'on\s+(\d{4}-\d{2}-\d{2})',
         'price_max': r'under\s+(\d+)',
         'price_min': r'over\s+(\d+)',
         'time': r'at\s+(\d{2}:\d{2})',
+        'flight_number': r'\b([A-Z]{2}\d{3,4})\b'  # Matches airline code (2 letters) followed by 3-4 digits
     }
     
     parsed = {}
@@ -51,34 +55,47 @@ def parse_flight_query(query):
         if match:
             parsed[key] = match.group(1).strip()
     
+    # If no fields matched, check if the query is just a destination
+    if not parsed:
+        destination_match = re.search(r'^(?:flights?\s+(?:to|for)\s+)?([A-Za-z\s]+)$', query, re.IGNORECASE)
+        if destination_match:
+            parsed['destination'] = destination_match.group(1).strip()
+    
     return parsed
 
+def query_flights(flights, **kwargs):
+    """
+    Query flights based on provided criteria.
+    
+    :param flights: List of flight dictionaries.
+    :param kwargs: Key-value pairs representing the criteria for filtering flights.
+    :return: List of flights matching the criteria.
+    """
+    def flight_matches(flight, criteria):
+        return all(str(flight.get(key, '')).lower() == str(value).lower() for key, value in criteria.items())
+    return [flight for flight in flights if flight_matches(flight, kwargs)]
 
 def flight_query_tool(query):
     print("Querying for:", query)
-    parsed_query = parse_flight_query(query)
-    print("Parsed query:", parsed_query)
-    relevant_flights = []
+    
+    if isinstance(query, str):
+        parsed_query = parse_flight_query(query)
+        print(parsed_query)
+    elif isinstance(query, dict):
+        parsed_query = query
+    else:
+        return json.dumps([{"error": "Invalid query format"}])
+    
+    if not parsed_query:
+        return json.dumps([])
 
-    for flight in mock_flights:
-        matches = True
-        for key, value in parsed_query.items():
-            if key == 'price_max' and flight['price'] > int(value):
-                matches = False
-                break
-            elif key == 'price_min' and flight['price'] < int(value):
-                matches = False
-                break
-            elif key in flight and str(flight[key]).lower() != value.lower():
-                matches = False
-                break
-        
-        if matches:
-            flight_with_number = flight.copy()
-            flight_with_number['flight-number'] = random.randint(100, 9999)
-            relevant_flights.append(flight_with_number)
+    # Use the query_flights function to get matching flights
+    matching_flights = query_flights(mock_flights, **parsed_query)
 
-    return json.dumps(relevant_flights[:5])
+    # Limit to 5 results
+    result_flights = matching_flights[:5]
+
+    return json.dumps(result_flights if result_flights else [])
 
 tools = [
     StructuredTool(
@@ -113,8 +130,8 @@ prompt = PromptTemplate(
     Remember:
     1. Only use FlightQueryTool when the user is specifically asking about flights.
     2. For greetings or general questions, respond directly without using any tools.
-    3. When using FlightQueryTool, ensure your final answer is a valid JSON string containing an array of flight objects.
-    4. If there are no matching flights, return "No flights available right now." 
+    3. When using FlightQueryTool, return ONLY the raw JSON output. Do not add any explanations or formatting.
+    4. If there are no matching flights, the tool will return an empty array []. Do not add any explanatory text.
     """
 )
 
@@ -147,10 +164,12 @@ def ensure_json_output(result):
         try:
             # Attempt to parse the output as JSON
             json_output = json.loads(result['output'])
-            # Ensure it's an array
-            if not isinstance(json_output, list):
-                json_output = [json_output]
-            return {"output": json.dumps(json_output)}
+            if isinstance(json_output, list):
+                # It's already a JSON array, return as string
+                return {"output": json.dumps(json_output)}
+            else:
+                # If it's not a list, wrap it in a list and return as string
+                return {"output": json.dumps([json_output])}
         except json.JSONDecodeError:
             # If it's not valid JSON, it's likely a general response
             return {"output": json.dumps([{"response": result['output']}])}
