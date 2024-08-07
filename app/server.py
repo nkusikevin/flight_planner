@@ -64,13 +64,7 @@ def parse_flight_query(query):
     return parsed
 
 def query_flights(flights, **kwargs):
-    """
-    Query flights based on provided criteria.
     
-    :param flights: List of flight dictionaries.
-    :param kwargs: Key-value pairs representing the criteria for filtering flights.
-    :return: List of flights matching the criteria.
-    """
     def flight_matches(flight, criteria):
         return all(str(flight.get(key, '')).lower() == str(value).lower() for key, value in criteria.items())
     return [flight for flight in flights if flight_matches(flight, kwargs)]
@@ -94,6 +88,8 @@ def flight_query_tool(query):
 
     # Limit to 5 results
     result_flights = matching_flights[:5]
+
+    print("Result:", result_flights)
 
     return json.dumps(result_flights if result_flights else [])
 
@@ -135,6 +131,7 @@ prompt = PromptTemplate(
     """
 )
 
+
 # Create the agent
 # agent = create_react_agent(llm, tools, prompt)
 llm_with_tools = llm.bind(functions=[format_tool_to_openai_function(t) for t in tools])
@@ -165,13 +162,18 @@ def ensure_json_output(result):
             # Attempt to parse the output as JSON
             json_output = json.loads(result['output'])
             if isinstance(json_output, list):
+                if not json_output:  # Empty list
+                    return {"output": json.dumps([{"message": "I'm sorry, but no flights are available matching your criteria."}])}
                 # It's already a JSON array, return as string
                 return {"output": json.dumps(json_output)}
             else:
                 # If it's not a list, wrap it in a list and return as string
                 return {"output": json.dumps([json_output])}
         except json.JSONDecodeError:
-            # If it's not valid JSON, it's likely a general response
+            # If it's not valid JSON, check for timeout or iteration limit
+            if "iteration limit" in result['output'].lower() or "time limit" in result['output'].lower():
+                return {"output": json.dumps([{"error": "I'm sorry, but no flights are available matching your criteria."}])}
+            # Otherwise, it's likely a general response
             return {"output": json.dumps([{"response": result['output']}])}
     else:
         return {"output": json.dumps([{"error": "Unexpected output format"}])}
