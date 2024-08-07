@@ -34,9 +34,10 @@ llm = ChatOpenAI(temperature=0.7, model_name="gpt-4o-mini" , max_tokens=100)
 class FlightQueryInput(BaseModel):
     query: str
 
+
 def parse_flight_query(query):
     patterns = {
-        'departure': r'from\s+([A-Za-z\s]+)',
+        'departure': r'from\s+([A-Za-z\s]+?)(?:\s+to\b|\s*$)',
         'destination': r'to\s+([A-Za-z\s]+)',
         'date': r'on\s+(\d{4}-\d{2}-\d{2})',
         'price_max': r'under\s+(\d+)',
@@ -46,9 +47,9 @@ def parse_flight_query(query):
     
     parsed = {}
     for key, pattern in patterns.items():
-        match = re.search(pattern, query)
+        match = re.search(pattern, query, re.IGNORECASE)
         if match:
-            parsed[key] = match.group(1)
+            parsed[key] = match.group(1).strip()
     
     return parsed
 
@@ -56,6 +57,7 @@ def parse_flight_query(query):
 def flight_query_tool(query):
     print("Querying for:", query)
     parsed_query = parse_flight_query(query)
+    print("Parsed query:", parsed_query)
     relevant_flights = []
 
     for flight in mock_flights:
@@ -131,42 +133,6 @@ agent = (
     | OpenAIFunctionsAgentOutputParser()
 )
 
-# class Input(BaseModel):
-#     input: str
-
-# # Modify the Output class to expect a JSON string
-# class Output(BaseModel):
-#     output: str
-
-# def ensure_json_output(result):
-#     if isinstance(result, dict) and 'output' in result:
-#         try:
-#             # Attempt to parse the output as JSON
-#             json_output = json.loads(result['output'])
-#             # Ensure it's an array
-#             if not isinstance(json_output, list):
-#                 json_output = [json_output]
-#             return json.dumps(json_output)
-#         except json.JSONDecodeError:
-#             # If it's not valid JSON, wrap it in an array and return
-#             return json.dumps([{"error": "Invalid JSON", "original_output": result['output']}])
-#     else:
-#         return json.dumps([{"error": "Unexpected output format"}])
-
-# # Create the agent executor
-# agent_executor = AgentExecutor(agent=agent, tools=tools, handle_parsing_errors=True)
-
-# # Create a runnable that ensures JSON output
-# json_runnable = RunnablePassthrough() | agent_executor | ensure_json_output
-
-# # Add LangServe route with the modified executor
-# add_routes(
-#     app, 
-#     json_runnable.with_types(input_type=Input, output_type=Output).with_config(
-#         {"run_name": "agent"}
-#     ), 
-#     path="/flight_planner"
-# )
 
 class Input(BaseModel):
     input: str
@@ -206,5 +172,6 @@ add_routes(
 
 if __name__ == "__main__":
     import uvicorn
+    import os
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
