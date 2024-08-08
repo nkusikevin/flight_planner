@@ -54,7 +54,7 @@ mock_flights = [
     {"departure": "Kigali", "destination": "Dar es Salaam", "date": "2024-08-23", "departure_time": "08:00", "arrival_time": "10:00", "flight_number": "WB5678", "duration": "2h", "price": 300},
     {"departure": "Kigali", "destination": "Kampala", "date": "2024-08-24", "departure_time": "09:30", "arrival_time": "11:00", "flight_number": "WB9012", "duration": "1.5h", "price": 250},
     {"departure": "Kigali", "destination": "Bujumbura", "date": "2024-08-25", "departure_time": "07:00", "arrival_time": "08:00", "flight_number": "WB3456", "duration": "1h", "price": 200},
-    {"departure": "Kigali", "destination": "Mombasa", "date": "2024-08-26", "departure_time": "15:00", "arrival_time": "17:00", "flight_number": "WB7890", "duration": "2h", "price": 350},
+    {"departure": "Kigali", "destination": "Mombasa", "date": "2024-08-26", "departure_time": "15:00", "arrival_time": "17:00", "flight_number": "WB7834", "duration": "2h", "price": 350},
     {"departure": "Kigali", "destination": "Entebbe", "date": "2024-08-27", "departure_time": "14:45", "arrival_time": "16:15", "flight_number": "WB2345", "duration": "1.5h", "price": 250},
     {"departure": "Nairobi", "destination": "Johannesburg", "date": "2024-08-29", "departure_time": "10:00", "arrival_time": "13:00", "flight_number": "KQ5678", "duration": "3h", "price": 500},
     {"departure": "Nairobi", "destination": "Dubai", "date": "2024-08-30", "departure_time": "12:30", "arrival_time": "19:30", "flight_number": "KQ9012", "duration": "6h", "price": 600},

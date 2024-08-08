@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from langchain.agents import AgentExecutor, Tool
 from langchain.tools.base import StructuredTool
+from fastapi.middleware.cors import CORSMiddleware
 from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
 from langchain.agents.format_scratchpad import format_to_openai_functions
 from langchain.tools.render import format_tool_to_openai_function
@@ -29,6 +30,17 @@ app = FastAPI(
     version="1.0",
     description="Spin up a simple api server using Langchain's Runnable interfaces",
 )
+
+# Set all CORS enabled origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
 
 
 # Initialize the OpenAI language model
