@@ -89,7 +89,9 @@ def flight_query_tool(query):
     # Limit to 5 results
     result_flights = matching_flights[:5]
 
+
     return json.dumps(result_flights if result_flights else [])
+ 
 
 tools = [
     StructuredTool(
@@ -155,18 +157,26 @@ class Output(BaseModel):
     output: List[Dict[str, Any]]
 
 def ensure_json_output(result):
+
     if isinstance(result, dict) and 'output' in result:
         try:
             # Attempt to parse the output as JSON
             json_output = json.loads(result['output'])
+             # Determine visualization based on the number of elements
+            visualization_type = "flight-list" if len(json_output) > 3 else "flight-details"
             if isinstance(json_output, list):
                 if not json_output:  # Empty list
                     return {"output": [{"message": "I'm sorry, but no flights are available matching your criteria."}]}
+
+               
+
                 # It's already a JSON array, return it directly
-                return {"output": json_output}
+                print({"output": json_output, "visualization": "flight-details"})
+                return {"output": json_output, "visualization": "flight-details"}
             else:
+                print({"output": [json_output],"visualization": "flight-list"})
                 # If it's not a list, wrap it in a list
-                return {"output": [json_output]}
+                return {"output": [json_output],"visualization": "flight-list"}
         except json.JSONDecodeError:
             # If it's not valid JSON, check for timeout or iteration limit
             if "iteration limit" in result['output'].lower() or "time limit" in result['output'].lower():
@@ -181,6 +191,32 @@ agent_executor = AgentExecutor(agent=agent, tools=tools, handle_parsing_errors=T
 # Create a runnable that ensures JSON output
 json_runnable = RunnablePassthrough() | agent_executor | ensure_json_output
 
+@app.get("/query_flights/{query}")
+def main(query: str):
+    if not query:
+        return {"error": "Query is empty"}
+    try:
+        parsed_query = parse_flight_query(query)
+    except Exception as e:
+        return {"error": str(e)}
+    
+    if not parsed_query:
+        return {"flights": []}
+
+    try:
+        matching_flights = query_flights(mock_flights, **parsed_query)
+        result_flights = matching_flights[:5]
+        return {"flights": result_flights}
+    except Exception as e:
+        return {"error": str(e)}
+    
+
+
+
+
+
+
+
 # Add LangServe route with the modified executor
 add_routes(
     app, 
@@ -189,6 +225,10 @@ add_routes(
     ), 
     path="/flight_planner"
 )
+
+
+
+
 
 if __name__ == "__main__":
     import uvicorn
