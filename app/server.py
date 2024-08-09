@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from langchain.agents import AgentExecutor, Tool
 from langchain.tools.base import StructuredTool
 from fastapi.middleware.cors import CORSMiddleware
-from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
+from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser,JSONAgentOutputParser
 from langchain.agents.format_scratchpad import format_to_openai_functions
 from langchain.tools.render import format_tool_to_openai_function
 from langchain.agents import create_react_agent
@@ -158,7 +158,7 @@ agent = (
     }
     | prompt
     | llm_with_tools
-    | OpenAIFunctionsAgentOutputParser()
+    | JSONAgentOutputParser()
 )
 
 
